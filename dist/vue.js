@@ -4,38 +4,6 @@
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.Vue = factory());
 })(this, (function () { 'use strict';
 
-  function _typeof(obj) {
-    "@babel/helpers - typeof";
-
-    return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (obj) {
-      return typeof obj;
-    } : function (obj) {
-      return obj && "function" == typeof Symbol && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
-    }, _typeof(obj);
-  }
-  function _classCallCheck(instance, Constructor) {
-    if (!(instance instanceof Constructor)) {
-      throw new TypeError("Cannot call a class as a function");
-    }
-  }
-  function _defineProperties(target, props) {
-    for (var i = 0; i < props.length; i++) {
-      var descriptor = props[i];
-      descriptor.enumerable = descriptor.enumerable || false;
-      descriptor.configurable = true;
-      if ("value" in descriptor) descriptor.writable = true;
-      Object.defineProperty(target, descriptor.key, descriptor);
-    }
-  }
-  function _createClass(Constructor, protoProps, staticProps) {
-    if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-    if (staticProps) _defineProperties(Constructor, staticProps);
-    Object.defineProperty(Constructor, "prototype", {
-      writable: false
-    });
-    return Constructor;
-  }
-
   /**
    * ps：ast语法树 (abstract syntax tree 抽象语法树)  vnode(虚拟节点)
    * 如：页面结构 <div id="#app">hello {{msg}}<span></span></div>
@@ -45,8 +13,93 @@
    * attrs:[{id:'app'}],
    * children:[{tag:null,text:'hello'},{tag:'span'}]
    */
+  /** 以下为vue2中区别标签相关的正则 */
+  const ncname = `[a-zA-Z_][\\-\\.0-9_a-zA-Z]*`; // 标签名称 ---如 div
+  const qnameCapture = `((?:${ncname}\\:)?${ncname})`; // 如  <span:xx>
+  const startTagOpen = new RegExp(`^<${qnameCapture}`); // 标签开头的正则 捕获的内容是标签名    如 <div
+
+  const attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/; // \s所有空白符，包括换行 id="app"
+  const startTagClose = /^\s*(\/?)>/; // 匹配标签结束的 >   ps: startTagOpen + attribute + startTagClose = "<div id="app" >
+
+  /**
+   * 
+   * @param {*} html - 本次需要转换的html
+   */
+  function parseHTML(html) {
+    // html中包含的内容只有3大类型:开始标签  文本  结束标签
+    /** 思路 每次解析结束完成部分的html 删除 */
+    while (html) {
+      // html 为空结束
+      // 判断标签
+      let textEnd = html.indexOf('<');
+      if (textEnd === 0) {
+        // html以 < 开头 说明是标签
+        // 1.看是否是开始标签，与开始标签的正则startTagOpen 匹配
+        const startTagMatch = parseStartTag(); //  开始标签的内容-该方法需要定义
+        console.log('----startTagMatch', startTagMatch);
+        continue;
+      }
+      // 文本
+      // 说明html 不是< 开头 如： hello</div> ,这个textEnd就是5
+      if (textEnd > 0) {
+        //  解析文本
+        //  获取文本内容 ---方案:// hello</div> 截取< 符号之前的内容(其实就是hello)
+        //  console.log('----textEnd',textEnd)
+        let text = html.slice(0, textEnd);
+        console.log('----text', text);
+      }
+      break;
+    }
+    function parseStartTag() {
+      // 子表达式指:正则表达式中用小括号包起来的表达式
+      /** match(正则表达式),若正则表达式没有全局标识/g,
+      *   则该match方法只执行一次匹配，
+      *   返回[匹配文本,与子表达式匹配的文本们...,index:匹配开始位置,input:进行匹配的字符串本身的引用] 
+      *   若无结果 返回null*/
+      const start = html.match(startTagOpen);
+      // start = ['<div', 'div', index: 0, input: "<div id='#app'>hello {{msg}}<span></span></div>", groups: undefined]
+      // 创建ast 语法树-初级形态
+      let match = {
+        tagName: start[1],
+        attrs: []
+      };
+      advance(start[0].length); // 向前推进一步 (删除开始标签)
+      // 获取属性 -注意 属性可能有多个 需要遍历
+      let attr;
+      /*
+        注意 刚才删除了开始标签 但是开始标签还有个 >  
+        比如第一次删除了开始标签<div  剩余 id='#app'> hello {{msg}} <span></span></div>
+      */
+      let end;
+      /* 
+        循环剩下的html -若剩余的html 不是单纯的> (html.match(startTagClose) 为true则表示仅为>) 
+        并且有属性(html.match(attribute)为true表示有属性内容)
+      */
+      // console.log('---->',html.match(startTagClose))
+      // console.log('----attribute',html.match(attribute))
+      while (!(end = html.match(startTagClose)) && (attr = html.match(attribute))) {
+        // 将属性追加到match的attrs中 [{name:'id',value:'app'}]
+        match.attrs.push({
+          name: attr[1],
+          value: attr[3] || atrr[4] || atrr[5]
+        });
+        advance(attr[0].length);
+      }
+      if (end) {
+        advance(end[0].length);
+        return match; // <div id='app'> 解析完成 返回开始节点对应的ast初级形态语法树
+      }
+    }
+
+    function advance(n) {
+      // 删除以及识别出的html字符串 （如 识别了<div 则删除<div,n为识别出的字符串的长度）
+      html = html.substring(n); // 从html的n位置开始截取到最后,返回截取后的内容---删除了识别出的内容
+      console.log('---advance', html);
+    }
+  }
   function compileToFunction(el) {
     console.log('---compileToFunction', el);
+    parseHTML(el);
   }
 
   /**重写数组中的方法
@@ -55,22 +108,19 @@
    */
 
   //1.获取原数组中的方法
-  var oldArrayProtoMethods = Array.prototype;
+  let oldArrayProtoMethods = Array.prototype;
   //2.继承 ->通过指定原型对象 创建新对象ArrayMethods  ;ArrayMethods.__proto__ 指向oldArrayProtoMethods
-  var ArrayMethods = Object.create(oldArrayProtoMethods);
+  let ArrayMethods = Object.create(oldArrayProtoMethods);
   //3.列出所有需要劫持的方法
-  var methods = ['push', 'pop', 'unshift', 'shift', 'pop'];
-  methods.forEach(function (item) {
-    ArrayMethods[item] = function () {
-      for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-        args[_key] = arguments[_key];
-      }
+  let methods = ['push', 'pop', 'unshift', 'shift', 'pop'];
+  methods.forEach(item => {
+    ArrayMethods[item] = function (...args) {
       // console.log('---劫持了数组方法item',this,args)//此时的args是个数组[],会将传入的内容放入该数组中s
-      var result = oldArrayProtoMethods[item].apply(this, args);
+      let result = oldArrayProtoMethods[item].apply(this, args);
       //1.此时要考虑数组追加数据的情况  如原arr = [1,2]
       //因为追加的数据可能是1)普通3==>[1,2,3]    2）对象 {a:1} ==>[1,2,{a:1}]
       //2.考虑追加的方式 push unshift splice
-      var inserted; //追加的内容
+      let inserted; //追加的内容
       switch (item) {
         case 'push':
         case 'unshift':
@@ -86,7 +136,7 @@
         先在此处打印下this--》看看this指向谁 -通过打印得知,this指向当前数组对象 list
       */
       // console.log('---this',this)
-      var obj = this.__ob__;
+      let obj = this.__ob__;
       if (inserted) {
         obj.observerArray(inserted); //因为args是数组 所以推荐使用observerArray
       }
@@ -95,19 +145,26 @@
     };
   });
 
+  /**需要劫持的类型分两种
+   * 1) 对象: 利用Object.defineProperty 
+   *    -缺点:只能对对象中的一个属性进行劫持
+   *    -遍历:{a:1,b:2,c:3}   
+   *    -递归:{a:{b:1}} get set
+   * 2) 数组:方法函数劫持,重写数组方法 push unshift pop splice
+   *    
+   * **/
   //对外暴漏劫持对象方法
   function observer(data) {
     // console.log('---observer', data);
-    if (_typeof(data) != 'object' || data == null) {
+    if (typeof data != 'object' || data == null) {
       return data; //若data不是对象 或者为null 则不需要劫持
     }
     //1.对象 通过一个类进行劫持
     return new Observer(data);
   }
-  var Observer = /*#__PURE__*/function () {
+  class Observer {
     //vue2 通过defineProperty 缺点:只能对对象中的一个属性进行劫持
-    function Observer(value) {
-      _classCallCheck(this, Observer);
+    constructor(value) {
       //构造器
       if (Array.isArray(value)) {
         //数组对象劫持方法
@@ -127,38 +184,33 @@
       });
     }
     //遍历非数组对象 进行劫持
-    _createClass(Observer, [{
-      key: "walk",
-      value: function walk(data) {
-        var keys = Object.keys(data); //{a:{n:1},list:[1,2,3],arr:[{n:1,m:2}]} ->[a,list,arr]
-        for (var i = 0; i < keys.length; i++) {
-          var key = keys[i];
-          var value = data[key];
-          defineReactive(data, key, value); //对data中的属性取值和赋值时的操作和处理
-        }
+    walk(data) {
+      let keys = Object.keys(data); //{a:{n:1},list:[1,2,3],arr:[{n:1,m:2}]} ->[a,list,arr]
+      for (let i = 0; i < keys.length; i++) {
+        let key = keys[i];
+        let value = data[key];
+        defineReactive(data, key, value); //对data中的属性取值和赋值时的操作和处理
       }
-      //遍历数组对象 进行劫持
-    }, {
-      key: "observerArray",
-      value: function observerArray(value) {
-        //value=[{a:1},{b:2}]
-        console.log('--value', value, value.length);
-        for (var i = 0; i < value.length; i++) {
-          observer(value[i]); //单独劫持数组中的每个对象
-        }
+    }
+    //遍历数组对象 进行劫持
+    observerArray(value) {
+      //value=[{a:1},{b:2}]
+      console.log('--value', value, value.length);
+      for (let i = 0; i < value.length; i++) {
+        observer(value[i]); //单独劫持数组中的每个对象
       }
-    }]);
-    return Observer;
-  }(); //对对象中的属性进行拦截和处理
+    }
+  }
+  //对对象中的属性进行拦截和处理
   function defineReactive(data, key, value) {
     observer(value); //对value进行递归 深度代理-> 最初的data可能是{a:{b:1}} 若value值依然是对象 则继续重复劫持该对象--直到值为普通数据
     Object.defineProperty(data, key, {
-      get: function get() {
+      get() {
         //外部调用data.key时触发get方法
         console.log('--get');
         return value;
       },
-      set: function set(newValue) {
+      set(newValue) {
         console.log('----set');
         if (newValue === value) return; //两次内容一样 不做处理
         observer(newValue); //修改的value也要代理（如 a:{b:1}===> a:{c:1}）,值{c:1}也需要被代理
@@ -169,7 +221,7 @@
 
   /**初始化数据的文件？ */
   function initState(vm) {
-    var opts = vm.$options;
+    let opts = vm.$options;
     // console.log('--opts',opts)
     //判断
     if (opts.props) ;
@@ -188,12 +240,12 @@
    */
   function initData(vm) {
     // console.log('---对data进行初始化',vm);
-    var data = vm.$options.data;
+    let data = vm.$options.data;
     //获取data数据
     data = vm._data = typeof data == 'function' ? data.call(vm) : data; //1. 注意this 2.为了方便获取 将原option中data的值直接绑定到vm._data中
     //对数据进行劫持
     //将data上的所有属性代理到vm实例上
-    for (var key in data) {
+    for (let key in data) {
       //自定义函数proxy 
       proxy(vm, '_data', key);
     }
@@ -203,21 +255,22 @@
   function proxy(vm, source, key) {
     Object.defineProperty(vm, key, {
       //定义vm中的key属性,vm.key时返回 vm._data.key的值
-      get: function get() {
+      get() {
         return vm[source][key];
       },
-      set: function set(newValue) {
+      set(newValue) {
         //vm.key=newValue时 相当于调用vm._data.key = newValue
         vm[source][key] = newValue;
       }
     });
   }
 
+  //Vue所有初始化的内容
   function initMixin(Vue) {
     //_init方法放到Vue原型链上
     Vue.prototype._init = function (options) {
       // console.log('_initMixin中Vue原型链上的',options);
-      var vm = this;
+      let vm = this;
       vm.$options = options; //将参数帮到实例上
       //初始化状态
       initState(vm);
@@ -230,13 +283,13 @@
     //创建$mount方法
     Vue.prototype.$mount = function (el) {
       // console.log('---el',el)
-      var vm = this;
+      let vm = this;
       el = document.querySelector(el); //根据id获取当前绑定的根节点-object
-      console.log('---el', _typeof(el));
-      var options = vm.$options;
+      console.log('---el', typeof el);
+      let options = vm.$options;
       if (!options.render) {
         //new Vue的时候没有指定render函数
-        var template = options.template;
+        let template = options.template;
         if (!template && el) {
           //new Vue的时候没有指定模版，且存在根节点
           el = el.outerHTML; //string-[1]
