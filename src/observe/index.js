@@ -46,7 +46,7 @@ class Observer {
   }
   //遍历数组对象 进行劫持
   observerArray(value){//value=[{a:1},{b:2}]
-    console.log('--value',value,value.length)
+    // console.log('--value',value,value.length)
     for(let i=0;i<value.length;i++){
       observer(value[i]);//单独劫持数组中的每个对象
     }
@@ -57,11 +57,11 @@ function defineReactive(data, key, value) {
   observer(value); //对value进行递归 深度代理-> 最初的data可能是{a:{b:1}} 若value值依然是对象 则继续重复劫持该对象--直到值为普通数据
   Object.defineProperty(data, key, {
     get() { //外部调用data.key时触发get方法
-      console.log('--get')
+      // console.log('--get')
       return value;
     },
     set(newValue) {
-      console.log('----set')
+      // console.log('----set')
       if (newValue === value) return; //两次内容一样 不做处理
       observer(newValue)//修改的value也要代理（如 a:{b:1}===> a:{c:1}）,值{c:1}也需要被代理
       value = newValue; //否则将新值赋值给旧值

@@ -8,5 +8,7 @@
 5.模版编译 ->页面直接用{{msg}}
   5.1 str--->ast compileToFunction
     1)parseHTML ---将制定的html内容转换成ast对象
-
+  5.2 ast -> render
+6. render->虚拟dom
+7. vue渲染流程 + 合并生命周期 （created data）及调用
 正则说明：
