@@ -8,7 +8,10 @@
 </head>
 <body>
   <!-- <div id="app" >Hello {{msg}} </div> -->
-  <div id="app" style="color:red;font-size:20px"> Hello {{ msg }} <h2>张三</h2></div>
+  <!-- <div id="app" style="color:red;font-size:20px"> Hello {{ msg }} <h2>张三</h2></div> -->
+  <div id="app" > 
+    {{arr}},{{obj.oname}}
+  </div>
   <script src="dist/vue.js"></script>
   <script>
     // 因为使用的 umd 格式打包 所以全局window上有Vue
@@ -29,9 +32,12 @@
       el:'#app',
       data:{
         msg:'zs',
-        a:{b:10},
-        list:[1,2,3,4],
-        arr:[{a:1,b:2}]
+        // a:{b:10},
+        // list:[1,2,3,4],
+        // arr:[{a:1}],
+        // name:'小红',
+        obj:{oname:'haha'},
+        arr:[1,2,3]
       },
       props:{},
       watch:{},
@@ -40,8 +46,8 @@
       }
     })
     console.log('--vm',vm)
-    // vm._data.name='wangwu'
-    let newlist = {cc:3};
+    // // vm._data.name='wangwu'
+    // let newlist = {cc:3};
     // console.log('---vm',vm._data.list.push(newlist))
     // console.log(vm.list)
     //==>vue初次渲染==》 先初始化数据 ===》将模版进行编译 ==》变成render() 
@@ -59,6 +65,39 @@
      *     vue中订阅好所有生命周期,使用时发布
      *     所有数据啥的都放到options中
      * */
+
+
+
+
+
+    //  setTimeout(()=>{
+    //     // vm.name = "张三";
+    //     // vm.msg ="消息";
+    //     //vm._update(vm._render());//_render()执行render函数 获取到vm实例上的数据vnode  _update更新页面vnode => 真实的dom 手动更新视图 -解决问题1
+
+    //  },1000)
+    //  console.log('改变name之后的vm',vm)//问题1:此时的vm中name已经改变，但是视图中name的值没有变
+    setTimeout(()=>{
+      vm.arr.push(4);
+      vm.obj.oname = "objName"
+    },100)
+     //问题2: 每次手动调用更新很麻烦，希望可以实现自动更新
+     /**
+      * 1) 数据变化后自动更新视图
+      * 2）vue中更新组件策略是：以组件为单位,给每一个组件添加watcher,属性变化后调用watcher
+      * 
+      * 
+      * //二.实现对象收集依赖
+      * //dep和watcher的关系 多对多 为了computed 
+      * 
+      * //三.数组收集
+      * 思路：
+      * 1.给所有对象类型增加一个dep  本次处理数组对象[] 
+      * 2.获取数组的值，会调用get方法 我们希望让当前的数组记住这个渲染的watcher
+      * *2.1获取当前dep
+      * *2.2 当前数组取值时，让数组的dep记住该watcher
+      * *2.3 获取更新数组时，通过调用push,等方法时，找到对应watcher进行更新
+     */
   </script>
 </body>
 </html>

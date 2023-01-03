@@ -44,6 +44,7 @@ methods.forEach(item=>{
     if(inserted){
       obj.observerArray(inserted)//因为args是数组 所以推荐使用observerArray
     }
+    obj.dep.notify();
     return result;
     
   }

@@ -75,8 +75,8 @@
         // console.log('---mixin',mixin,this.options)
         //对象的合并
         this.options = mergeOptions(this.options, mixin); //this是当前vue实例,第一次this.options没值
-        console.log('---initG', Vue.options);
-        console.log('----Vue.$options', Vue);
+        //    console.log('---initG',Vue.options);
+        //    console.log('----Vue.$options',Vue);
       };
     }
 
@@ -511,9 +511,46 @@
           obj.observerArray(inserted); //因为args是数组 所以推荐使用observerArray
         }
 
+        obj.dep.notify();
         return result;
       };
     });
+
+    //dep就是发布者
+    let id$1 = 0;
+    class Dep {
+      constructor() {
+        this.id = id$1++;
+        this.subs = []; //存储依赖列表
+      }
+      //收集watcher->添加依赖
+      depend() {
+        //希望watcher 可以存放 dep -双向记忆
+        // this.subs.push(Dep.target)//Dep.target就是watcher
+        Dep.target.addDep(this); //this 代表当前dep实例
+      }
+
+      addSub(watcher) {
+        this.subs.push(watcher);
+      }
+      //更新watcher ->通知更新
+      notify() {
+        this.subs.forEach(watcher => {
+          watcher.update(); //执行watcher实例的getter()->_update(_render())//其实就是defineProperty中调用了几次set(修改了几个属性),执行几次更新
+        });
+      }
+    }
+    //添加watcher-->向Dep中添加 
+    Dep.target = null;
+    function pushTarget(watcher) {
+      Dep.target = watcher;
+      console.log('---Dep.target', Dep.target);
+    }
+    //删除watcher
+    function popTarget() {
+      Dep.target = null;
+      console.log('---popTarget.target', Dep.target);
+    }
 
     /**需要劫持的类型分两种
      * 1) 对象: 利用Object.defineProperty 
@@ -536,6 +573,16 @@
       //vue2 通过defineProperty 缺点:只能对对象中的一个属性进行劫持
       constructor(value) {
         //构造器
+        /**给value上新增一个属性__obj__,值为Observer当前实例对象,
+        * 这样在劫持的data中都会有一个不可枚举的属性__obj__,可枚举性决定了这个属性能否被for…in查找遍历到
+        * 该属性直接指向当前observer实例对象（则可以直接使用observer实例上的方法）
+        * **/
+        Object.defineProperty(value, "__ob__", {
+          enumerable: false,
+          value: this
+        });
+        //给所有对象类型增加一个dep []
+        this.dep = new Dep();
         if (Array.isArray(value)) {
           //数组对象劫持方法
           value.__proto__ = ArrayMethods;
@@ -544,14 +591,6 @@
         } else {
           this.walk(value); //遍历非数组对象
         }
-        /**给value上新增一个属性__obj__,值为Observer当前实例对象,
-         * 这样在劫持的data中都会有一个不可枚举的属性__obj__,可枚举性决定了这个属性能否被for…in查找遍历到
-         * 该属性直接指向当前observer实例对象（则可以直接使用observer实例上的方法）
-         * **/
-        Object.defineProperty(value, "__ob__", {
-          enumerable: false,
-          value: this
-        });
       }
       //遍历非数组对象 进行劫持
       walk(data) {
@@ -573,11 +612,23 @@
     }
     //对对象中的属性进行拦截和处理
     function defineReactive(data, key, value) {
-      observer(value); //对value进行递归 深度代理-> 最初的data可能是{a:{b:1}} 若value值依然是对象 则继续重复劫持该对象--直到值为普通数据
+      let childDep = observer(value); //对value进行递归 深度代理-> 最初的data可能是{a:{b:1}} 若value值依然是对象 则继续重复劫持该对象--直到值为普通数据
+      // console.log('-childDep1',childDep)
+      let dep = new Dep(); //给每一个属性添加一个dep
       Object.defineProperty(data, key, {
         get() {
-          //外部调用data.key时触发get方法
+          //外部调用data.key时触发get方法  -此时需要收集依赖
+          if (Dep.target) {
+            dep.depend(); // 往dep的存储依赖列表subs中存入watcher  --原data中 watcher放dep & dep放watcher 如:data={arr:[1,2,3]}, 对arr对象添加dep(dep中有watcher,watcher中有dep)
+            if (childDep.dep) {
+              // 
+              childDep.dep.depend(); //数组收集 -当前属性的dep 中添加watcher 如:data={arr:[1,2,3]}, 1 2 3 添加dep(dep中有watcher,watcher中有dep)
+            }
+
+            console.log('-childDep', value, childDep);
+          }
           // console.log('--get')
+          // console.log('get Dep',dep);
           return value;
         },
         set(newValue) {
@@ -585,6 +636,7 @@
           if (newValue === value) return; //两次内容一样 不做处理
           observer(newValue); //修改的value也要代理（如 a:{b:1}===> a:{c:1}）,值{c:1}也需要被代理
           value = newValue; //否则将新值赋值给旧值
+          dep.notify();
         }
       });
     }
@@ -634,6 +686,66 @@
         }
       });
     }
+
+    //1)通过这个watcher类 实现更新 --订阅者
+
+    //因为每个组件 都有一个watcher ,为了区分 则需要一个唯一标识 id
+    let id = 0;
+    class watcher {
+      constructor(vm, updateComponent, cb, options) {
+        console.log('---watcher 构造器执行', id);
+        //1)
+        this.vm = vm;
+        this.exprOrfn = updateComponent;
+        this.cb = cb;
+        this.options = options;
+        this.id = id++;
+        this.deps = []; //watcher 存放dep
+        this.depsId = new Set(); //存放depId
+        //2)判断
+        if (typeof updateComponent === 'function') {
+          this.getter = updateComponent; //用来更新视图
+        }
+        //更新视图
+        this.get();
+      }
+      //watcher放dep & dep放watcher
+      addDep(dep) {
+        //1.去重
+        let id = dep.id;
+        if (!this.depsId.has(id)) {
+          this.deps.push(dep);
+          this.depsId.add(id);
+          //dep中放watcher
+          dep.addSub(this);
+        }
+      }
+      //初次渲染-获取对象的值
+      get() {
+        //添加watcher
+        pushTarget(this); //this就是一个watcher实例 初次渲染(第一次调用vm._update(vm._render())之前，添加watcher
+        /**
+         * 渲染页面 调用传入的updateComponent 即为：vm._update(vm._render()),其中_s(msg),会调用vm.msg 即调用observe/index.js defineReactive中的get()方法,此时若data中有多个属性被调用，
+         * 则都执行get方法之后才会执行后面的popTarget -->将Dep.target置为null
+         * */
+        this.getter();
+
+        //初次渲染（第一次调用vm._update(vm._render())）之后 删除watcher
+        popTarget();
+      }
+      //更新-对象的更新
+      update() {
+        this.getter();
+      }
+    }
+
+    /**
+     * 收集依赖
+     * vue 
+     * dep:就是data:{name,msg}中有多少个属性,则dep中有多少个 ，dep和data中的属性是一一对应的
+     * watcher:就是data中的属性，在视图上用了几个,dep的subs中就有几个watcher  -（第一个版本中 同时修改两个属性，msg,name subs中的两个watcher是同一个 subs=[watcher0,watcher0]）
+     * dep与watcher的关系： 1对多 dep.name = [w1,w2] (后面考虑computed 其实是多对多)
+     */
 
     /**
      * 
@@ -693,7 +805,14 @@
     function mounteComponent(vm, el) {
       //源码--页面加载之前 调用beforeMounted
       callHook(vm, "beforeMounted");
-      vm._update(vm._render()); //1)vm._render将render函数变成vnode 2)vm._update 将vnode变成真实dom 放到页面上 -本次操作即为页面加载
+      //part1中手动调用了更新页面方法-vm._update(vm._render())
+      //vm._update(vm._render())//1)vm._render将render函数变成vnode 2)vm._update 将vnode变成真实dom 放到页面上 -本次操作即为页面加载
+      //part2中 通过observe/watcher
+      let updateComponent = () => {
+        vm._update(vm._render());
+      };
+      //new watcher时调用了构造器，而构造器中默认调用了get(),get()又调用了传入的updateComponent
+      new watcher(vm, updateComponent, () => {}, true);
       callHook(vm, "mounted");
     }
     /**
@@ -713,9 +832,9 @@
 
     //生命周期调用（订阅发布的模式）
     function callHook(vm, hook) {
-      console.log('---', hook);
+      // console.log('---',hook);
       const handles = vm.$options[hook]; // 如hook为created, 则handles=[a,b,created]
-      console.log('---handles', handles);
+      // console.log('---handles',handles);
       if (handles) {
         for (let i = 0; i < handles.length; i++) {
           //性能最好的就是这种原始for

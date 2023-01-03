@@ -7,6 +7,7 @@
  *    
  * **/
 import {ArrayMethods} from './arr'
+import Dep from './dep'
 //对外暴漏劫持对象方法
 export function observer(data) {
   // console.log('---observer', data);
@@ -19,6 +20,17 @@ export function observer(data) {
 class Observer {
   //vue2 通过defineProperty 缺点:只能对对象中的一个属性进行劫持
   constructor(value) { //构造器
+     /**给value上新增一个属性__obj__,值为Observer当前实例对象,
+     * 这样在劫持的data中都会有一个不可枚举的属性__obj__,可枚举性决定了这个属性能否被for…in查找遍历到
+     * 该属性直接指向当前observer实例对象（则可以直接使用observer实例上的方法）
+     * **/
+      Object.defineProperty(value,"__ob__",{
+        enumerable:false,
+        value:this
+      })
+      //给所有对象类型增加一个dep []
+      this.dep = new Dep();
+
     if(Array.isArray(value)){//数组对象劫持方法
       value.__proto__ = ArrayMethods;
       //如果是数组对象 [{a:1},{b:2}]
@@ -26,14 +38,6 @@ class Observer {
     }else{
       this.walk(value) //遍历非数组对象
     }
-    /**给value上新增一个属性__obj__,值为Observer当前实例对象,
-     * 这样在劫持的data中都会有一个不可枚举的属性__obj__,可枚举性决定了这个属性能否被for…in查找遍历到
-     * 该属性直接指向当前observer实例对象（则可以直接使用observer实例上的方法）
-     * **/
-    Object.defineProperty(value,"__ob__",{
-      enumerable:false,
-      value:this
-    })
   }
   //遍历非数组对象 进行劫持
   walk(data) {
@@ -54,10 +58,20 @@ class Observer {
 }
 //对对象中的属性进行拦截和处理
 function defineReactive(data, key, value) {
-  observer(value); //对value进行递归 深度代理-> 最初的data可能是{a:{b:1}} 若value值依然是对象 则继续重复劫持该对象--直到值为普通数据
+  let childDep = observer(value); //对value进行递归 深度代理-> 最初的data可能是{a:{b:1}} 若value值依然是对象 则继续重复劫持该对象--直到值为普通数据
+  // console.log('-childDep1',childDep)
+  let dep = new Dep();//给每一个属性添加一个dep
   Object.defineProperty(data, key, {
-    get() { //外部调用data.key时触发get方法
+    get() { //外部调用data.key时触发get方法  -此时需要收集依赖
+      if(Dep.target){
+        dep.depend();// 往dep的存储依赖列表subs中存入watcher  --原data中 watcher放dep & dep放watcher 如:data={arr:[1,2,3]}, 对arr对象添加dep(dep中有watcher,watcher中有dep)
+        if(childDep.dep){// 
+          childDep.dep.depend()//数组收集 -当前属性的dep 中添加watcher 如:data={arr:[1,2,3]}, 1 2 3 添加dep(dep中有watcher,watcher中有dep)
+        }
+        console.log('-childDep',value,childDep)
+      }
       // console.log('--get')
+      // console.log('get Dep',dep);
       return value;
     },
     set(newValue) {
@@ -65,6 +79,7 @@ function defineReactive(data, key, value) {
       if (newValue === value) return; //两次内容一样 不做处理
       observer(newValue)//修改的value也要代理（如 a:{b:1}===> a:{c:1}）,值{c:1}也需要被代理
       value = newValue; //否则将新值赋值给旧值
+      dep.notify();
     }
   })
 }

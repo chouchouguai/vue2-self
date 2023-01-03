@@ -11,8 +11,8 @@ export function initGlobalApi(Vue){
         // console.log('---mixin',mixin,this.options)
         //对象的合并
         this.options = mergeOptions(this.options,mixin)//this是当前vue实例,第一次this.options没值
-       console.log('---initG',Vue.options);
-       console.log('----Vue.$options',Vue);
+    //    console.log('---initG',Vue.options);
+    //    console.log('----Vue.$options',Vue);
 
     }
 }
