@@ -1,4 +1,3 @@
-import { PatchFlagNames } from "@vue/shared";
 import watcher from "./observe/watcher";
 import { patch } from "./vnode/patch";
 
@@ -15,8 +14,10 @@ export function mounteComponent(vm,el){
     let updateComponent = ()=>{
         vm._update(vm._render())
     }
-    //new watcher时调用了构造器，而构造器中默认调用了get(),get()又调用了传入的updateComponent
-    new watcher(vm,updateComponent,()=>{},true)
+    //new watcher时调用了构造器，而构造器中默认调用了get(),get()又调用了传入的updateComponent -part2:这个watcher是用于渲染的 目前没有任何功能
+    new watcher(vm,updateComponent,()=>{
+        callHook(vm,'updated')//生命周期 updated的发布
+    },true)
     callHook(vm,"mounted");
 
 }
@@ -26,7 +27,7 @@ export function mounteComponent(vm,el){
  */
 export function lifecycleMixin(Vue){
     Vue.prototype._update = function(vnode){//vnode => 真实的dom
-        // console.log('---vnode',vnode)
+        console.log('---vnode',vnode)
         let vm = this;
         //参数 1）容器节点 2)vnode
         vm.$el = patch(vm.$el,vnode);//vue中的patch方法就是将虚拟dom->真实dom
@@ -38,7 +39,7 @@ export function lifecycleMixin(Vue){
 export function callHook(vm,hook){
     // console.log('---',hook);
     const handles = vm.$options[hook]// 如hook为created, 则handles=[a,b,created]
-    // console.log('---handles',handles);
+    console.log('---handles',handles);
     if(handles){
         for(let i=0;i<handles.length;i++){//性能最好的就是这种原始for
             handles[i].call(this);//改变生命周期中的this指向问题

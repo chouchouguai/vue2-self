@@ -25,11 +25,11 @@ class Observer {
      * 该属性直接指向当前observer实例对象（则可以直接使用observer实例上的方法）
      * **/
       Object.defineProperty(value,"__ob__",{
-        enumerable:false,
+        enumerable:false,//不能枚举
         value:this
       })
       //给所有对象类型增加一个dep []
-      this.dep = new Dep();
+      this.dep = new Dep();//给observer实例对象添加dep -注意 1){} 2[] 不是给里面的属性添加dep
 
     if(Array.isArray(value)){//数组对象劫持方法
       value.__proto__ = ArrayMethods;
@@ -63,12 +63,12 @@ function defineReactive(data, key, value) {
   let dep = new Dep();//给每一个属性添加一个dep
   Object.defineProperty(data, key, {
     get() { //外部调用data.key时触发get方法  -此时需要收集依赖
-      if(Dep.target){
+      if(Dep.target){//此时target如果有 则是一个watcher,Dep.target是调用了new Watcher()时，构造器调用Watcher的get()添加的,get方法中,先给Dep.target赋值，再调用更新和渲染方法,再将Dep.target=null
         dep.depend();// 往dep的存储依赖列表subs中存入watcher  --原data中 watcher放dep & dep放watcher 如:data={arr:[1,2,3]}, 对arr对象添加dep(dep中有watcher,watcher中有dep)
-        if(childDep.dep){// 
-          childDep.dep.depend()//数组收集 -当前属性的dep 中添加watcher 如:data={arr:[1,2,3]}, 1 2 3 添加dep(dep中有watcher,watcher中有dep)
+        if(childDep.dep){//childDep.dep是调用 new Observer()时,构造器添加的(new Dep),dep刚new出来，dep只有id 和空数组subs
+          childDep.dep.depend()//数组收集 -当前属性的dep 中添加watcher 如:data={arr:[1,2,3]}, 1 2 3 添加dep(dep中有watcher(通过subs),watcher中有dep(通过deps和depsId))
         }
-        console.log('-childDep',value,childDep)
+        // console.log('-childDep',value,childDep)
       }
       // console.log('--get')
       // console.log('get Dep',dep);
@@ -79,7 +79,7 @@ function defineReactive(data, key, value) {
       if (newValue === value) return; //两次内容一样 不做处理
       observer(newValue)//修改的value也要代理（如 a:{b:1}===> a:{c:1}）,值{c:1}也需要被代理
       value = newValue; //否则将新值赋值给旧值
-      dep.notify();
+      dep.notify();//如果修改数据 则调用dep的更新方法，该方法会将subs中的每一个watcher进行更新（调用watcher.update,而update就是调用了watcher的getter,getter= new Watcher()时传入的updateComponent函数=vm._update(vm._render())）
     }
   })
 }

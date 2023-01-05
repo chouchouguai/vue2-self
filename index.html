@@ -10,7 +10,7 @@
   <!-- <div id="app" >Hello {{msg}} </div> -->
   <!-- <div id="app" style="color:red;font-size:20px"> Hello {{ msg }} <h2>张三</h2></div> -->
   <div id="app" > 
-    {{arr}},{{obj.oname}}
+    {{arr}},{{obj.oname}},{{name}}
   </div>
   <script src="dist/vue.js"></script>
   <script>
@@ -20,12 +20,12 @@
     // 响应式的Vue2-  借鉴了MVVM模式
     Vue.Mixin({//vue全局方法
       created:function a(){
-        console.log('---全局created a');
+        // console.log('---全局created a');
       }
     })
     Vue.Mixin({//vue全局方法
       created:function b(){
-        console.log('---全局created b'); 
+        // console.log('---全局created b'); 
       }
     })
     let vm = new Vue({
@@ -37,12 +37,16 @@
         // arr:[{a:1}],
         // name:'小红',
         obj:{oname:'haha'},
-        arr:[1,2,3]
+        arr:[1,2,3],
+        name:'hello'
       },
       props:{},
       watch:{},
       created(){//生命周期就是一个函数的调用，先在vue中订阅好，后续会触发此方法，内部原理，将生命周期组合成一个数组[created1,created2]
         console.log('---vm created');
+      },
+      updated(){
+        console.log('--vm update');
       }
     })
     console.log('--vm',vm)
@@ -59,7 +63,7 @@
                   3）都没有则找el节点
      */
     /**
-     *  vue生命周期 实现原理 
+     *  vue生命周期 实现原理 -utils/index.js
      *  1）Vue.mixin({})//混入
      *  2）设计模式 订阅发布
      *     vue中订阅好所有生命周期,使用时发布
@@ -79,7 +83,16 @@
     //  console.log('改变name之后的vm',vm)//问题1:此时的vm中name已经改变，但是视图中name的值没有变
     setTimeout(()=>{
       vm.arr.push(4);
-      vm.obj.oname = "objName"
+      vm.obj.oname = "objName",
+      vm.name = "小红红"// 如果更新数据，则会调用defineReactive的set() set函数调用dep.notify()
+      //数组watcher完成之后 在此处思考
+      /*
+        上面更改了3次数据，则vm._update(vm._render())就调用了3次,我们希望,更新3次，只执行一次更新函数(批量处理)
+        vue的处理方式-》异步  数据更新后,不会立刻执行
+      */
+     vm.$nextTick(()=>{
+      console.log(vm.$el.innerHTML)
+     })
     },100)
      //问题2: 每次手动调用更新很麻烦，希望可以实现自动更新
      /**
@@ -98,6 +111,15 @@
       * *2.2 当前数组取值时，让数组的dep记住该watcher
       * *2.3 获取更新数组时，通过调用push,等方法时，找到对应watcher进行更新
      */
+
+     /**
+      * part2回归
+      * 1.收集依赖 ：实现自动更改     (vm._update(vm._render())的调用)
+      * 2.创建watcher类，进行扩展  (其中 get()中调用vm._update(vm._render()))
+      * 3.data 和 dep的关系     dep和watcher的关系
+      *   3.1 data的所有属性和dep是一一对应 (data:{obj:{name:'lisi'}}) ,obj有dep ;name有dep
+      *   3.2 dep和watcher 关系是多对多 （为了后面的computed属性）
+      * */
   </script>
 </body>
 </html>

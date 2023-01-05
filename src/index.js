@@ -1,6 +1,7 @@
 //项目入口文件
 import { initGlobalApi } from './global-api/index.js'
 import {initMixin} from './init.js'
+import { stateMixin } from './initState.js'
 import { lifecycleMixin } from './lifecycle.js'
 import { renderMixin } from './vnode/index.js'
 function Vue(options){//通过new Vue调用
@@ -12,6 +13,7 @@ function Vue(options){//通过new Vue调用
 initMixin(Vue)//调用该方法会向Vue对象的原型链上添加_init方法——对状态进行初始化
 lifecycleMixin(Vue)//对生命周期进行初始化
 renderMixin(Vue)//添加vm._render方法
+stateMixin(Vue)//给vm添加$nextTick
 
 //全局方法 vue.mixin Vue.component Vue.extend
 initGlobalApi(Vue);//初始化全局方法

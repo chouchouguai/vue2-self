@@ -1,6 +1,8 @@
+
+import { nextTick } from "./utils/nextTick"
 import { observer } from "./observe/index"
 
-/**初始化数据的文件？ */
+/**初始化数据的文件 */
 export function initState(vm){
   let opts = vm.$options
   // console.log('--opts',opts)
@@ -46,7 +48,7 @@ function initData(vm){
     //自定义函数proxy 
     proxy(vm,'_data',key)
   }
-  observer(data)// 注意 此时拿到的data可能是以下情况 (1）对象  (2) 数组  {a:{n:1},list:[1,2,3],arr:[{n:1,m:2}]}    
+  observer(data)// 数据劫持！！！！  dep,watcher都在劫持的时候处理 注意 此时拿到的data可能是以下情况 (1）对象  (2) 数组  {a:{n:1},list:[1,2,3],arr:[{n:1,m:2}]}    
 }
 //用于将代理 vm._data属性中的内容 全都直接放到vm中,key依然为原data中的key=> vm._data={a:1,b:2} 代理处理后为:vm.a=1 vm.b=2
 function proxy(vm,source,key){
@@ -58,4 +60,11 @@ function proxy(vm,source,key){
       vm[source][key] = newValue;
     }
   })
+}
+
+export function stateMixin(vm){
+  //队列处理 1)是vue自己的nextTick()   2)用户自己函数cb
+  vm.prototype.$nextTick = function (cb){
+    nextTick(cb);//此时的nextTick就是utils/nextTick暴漏的方法
+  }
 }

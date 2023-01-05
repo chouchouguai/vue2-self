@@ -1,6 +1,6 @@
 (function (global, factory) {
-    typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory(require('@babel/core/lib/gensync-utils/fs'), require('@vue/compiler-core'), require('@vue/shared')) :
-    typeof define === 'function' && define.amd ? define(['@babel/core/lib/gensync-utils/fs', '@vue/compiler-core', '@vue/shared'], factory) :
+    typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
+    typeof define === 'function' && define.amd ? define(factory) :
     (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.Vue = factory());
 })(this, (function () { 'use strict';
 
@@ -38,7 +38,7 @@
      * @returns 
      */
     function mergeOptions(parent, child) {
-      console.log('---mergeOptions', parent, child);
+      // console.log('---mergeOptions',parent,child)
       //Vue.options = {created:[a,b,c],watch:[a,b]}
       const options = {};
       //如果有parent 没有 child
@@ -472,6 +472,46 @@
     }
      */
 
+    let callback = []; //放回调方法
+    let pending$1 = false;
+    function flush() {
+      callback.forEach(cb => cb());
+      pending$1 = false;
+    }
+    let timerFunc;
+    //处理兼容问题
+    if (Promise) {
+      timerFunc = () => {
+        Promise.resolve().then(flush); //异步处理
+      };
+    } else if (MutationObserver) {
+      //h5 的异步方法 可以监听dom的变化 监控完毕之后再异步更新
+      let observe = new MutationObserver(flush);
+      let textNode = document.createTextNode(1); //创建文本
+      observe.observe(textNode, {
+        characterData: true
+      }); //观测文本内容
+      timerFunc = () => {
+        textNode.textContent = 2; //当文本内容变成2时 执行flush方法--课堂解说
+      };
+    } else if (setImmediate) {
+      //ie
+      timerFunc = () => {
+        setImmediate(flush);
+      };
+    }
+    /**nextTick :兼容不同浏览器 处理异步 */
+    function nextTick(cb) {
+      console.log('nextT', cb);
+      //队列
+      callback.push(cb);
+      //promise.then() vue3中
+      if (!pending$1) {
+        timerFunc(); //异步方法 但是要处理兼容问题
+        pending$1 = true;
+      }
+    }
+
     /**重写数组中的方法
      * 类名.prototype ->指向原型对象,该对象中包含了所有实例共享的属性和方法
      * 对象.__proto__ ->指向该对象所属类的prototype 两个完全相等
@@ -544,12 +584,12 @@
     Dep.target = null;
     function pushTarget(watcher) {
       Dep.target = watcher;
-      console.log('---Dep.target', Dep.target);
+      // console.log('---Dep.target',Dep.target)
     }
     //删除watcher
     function popTarget() {
       Dep.target = null;
-      console.log('---popTarget.target', Dep.target);
+      // console.log('---popTarget.target',Dep.target)
     }
 
     /**需要劫持的类型分两种
@@ -579,10 +619,12 @@
         * **/
         Object.defineProperty(value, "__ob__", {
           enumerable: false,
+          //不能枚举
           value: this
         });
         //给所有对象类型增加一个dep []
-        this.dep = new Dep();
+        this.dep = new Dep(); //给observer实例对象添加dep -注意 1){} 2[] 不是给里面的属性添加dep
+
         if (Array.isArray(value)) {
           //数组对象劫持方法
           value.__proto__ = ArrayMethods;
@@ -619,13 +661,13 @@
         get() {
           //外部调用data.key时触发get方法  -此时需要收集依赖
           if (Dep.target) {
+            //此时target如果有 则是一个watcher,Dep.target是调用了new Watcher()时，构造器调用Watcher的get()添加的,get方法中,先给Dep.target赋值，再调用更新和渲染方法,再将Dep.target=null
             dep.depend(); // 往dep的存储依赖列表subs中存入watcher  --原data中 watcher放dep & dep放watcher 如:data={arr:[1,2,3]}, 对arr对象添加dep(dep中有watcher,watcher中有dep)
             if (childDep.dep) {
-              // 
-              childDep.dep.depend(); //数组收集 -当前属性的dep 中添加watcher 如:data={arr:[1,2,3]}, 1 2 3 添加dep(dep中有watcher,watcher中有dep)
+              //childDep.dep是调用 new Observer()时,构造器添加的(new Dep),dep刚new出来，dep只有id 和空数组subs
+              childDep.dep.depend(); //数组收集 -当前属性的dep 中添加watcher 如:data={arr:[1,2,3]}, 1 2 3 添加dep(dep中有watcher(通过subs),watcher中有dep(通过deps和depsId))
             }
-
-            console.log('-childDep', value, childDep);
+            // console.log('-childDep',value,childDep)
           }
           // console.log('--get')
           // console.log('get Dep',dep);
@@ -636,12 +678,12 @@
           if (newValue === value) return; //两次内容一样 不做处理
           observer(newValue); //修改的value也要代理（如 a:{b:1}===> a:{c:1}）,值{c:1}也需要被代理
           value = newValue; //否则将新值赋值给旧值
-          dep.notify();
+          dep.notify(); //如果修改数据 则调用dep的更新方法，该方法会将subs中的每一个watcher进行更新（调用watcher.update,而update就是调用了watcher的getter,getter= new Watcher()时传入的updateComponent函数=vm._update(vm._render())）
         }
       });
     }
 
-    /**初始化数据的文件？ */
+    /**初始化数据的文件 */
     function initState(vm) {
       let opts = vm.$options;
       // console.log('--opts',opts)
@@ -671,7 +713,7 @@
         //自定义函数proxy 
         proxy(vm, '_data', key);
       }
-      observer(data); // 注意 此时拿到的data可能是以下情况 (1）对象  (2) 数组  {a:{n:1},list:[1,2,3],arr:[{n:1,m:2}]}    
+      observer(data); // 数据劫持！！！！  dep,watcher都在劫持的时候处理 注意 此时拿到的data可能是以下情况 (1）对象  (2) 数组  {a:{n:1},list:[1,2,3],arr:[{n:1,m:2}]}    
     }
     //用于将代理 vm._data属性中的内容 全都直接放到vm中,key依然为原data中的key=> vm._data={a:1,b:2} 代理处理后为:vm.a=1 vm.b=2
     function proxy(vm, source, key) {
@@ -686,6 +728,12 @@
         }
       });
     }
+    function stateMixin(vm) {
+      //队列处理 1)是vue自己的nextTick()   2)用户自己函数cb
+      vm.prototype.$nextTick = function (cb) {
+        nextTick(cb); //此时的nextTick就是utils/nextTick暴漏的方法
+      };
+    }
 
     //1)通过这个watcher类 实现更新 --订阅者
 
@@ -693,7 +741,7 @@
     let id = 0;
     class watcher {
       constructor(vm, updateComponent, cb, options) {
-        console.log('---watcher 构造器执行', id);
+        // console.log('---watcher 构造器执行',id);
         //1)
         this.vm = vm;
         this.exprOrfn = updateComponent;
@@ -720,6 +768,9 @@
           dep.addSub(this);
         }
       }
+      run() {
+        this.get();
+      }
       //初次渲染-获取对象的值
       get() {
         //添加watcher
@@ -735,7 +786,50 @@
       }
       //更新-对象的更新
       update() {
-        this.getter();
+        // this.get();
+        //注意:不要每次数据更改后，都调用更新-考虑使用缓存
+        queueWatcher(this);
+      }
+    }
+    let queue = []; //将需要批量更新的watcher 存放到一个队列中
+    let has = {};
+    let pending = false;
+    function flushWatcher() {
+      queue.forEach(item => {
+        item.run(); //执行watcher的run()->this.get()->1）添加watcher 2）调用vm._update(vm._render()) 3）删除watcher
+        item.cb(); //part2://执行new Watcher时传入的回调方法,更新完视图之后 用户在页面new Vue()实例的update函数中写了什么 就执行什么
+      });
+
+      queue = [];
+      has = {};
+      pending = false;
+    }
+    function queueWatcher(watcher) {
+      //每个组件都是同一个watcher
+      let id = watcher.id;
+      console.log('--watcher.id', watcher);
+      //通过id 去重 
+      if (has[id] == null) {
+        //队列处理 将watcher放入队列中
+        queue.push(watcher);
+        has[id] = true; //
+        //-节流 -一定时间内触发多次，只触发第一次
+        if (!pending) {
+          // console.log('---截流')
+          // setTimeout(()=>{//异步 等待同步代码执行完毕之后再执行该异步方法
+          //     console.log('---setTime',queue)
+          //     queue.forEach(item=>item.run())
+          //     queue = [];
+          //     has = {};
+          //     pending = false;
+          // },0)//通过nextTick实现更优化
+          /**
+           * nextTick相当于定时器
+           */
+          nextTick(flushWatcher);
+        }
+        console.log('---zhunbeigai pending');
+        pending = true;
       }
     }
 
@@ -745,6 +839,11 @@
      * dep:就是data:{name,msg}中有多少个属性,则dep中有多少个 ，dep和data中的属性是一一对应的
      * watcher:就是data中的属性，在视图上用了几个,dep的subs中就有几个watcher  -（第一个版本中 同时修改两个属性，msg,name subs中的两个watcher是同一个 subs=[watcher0,watcher0]）
      * dep与watcher的关系： 1对多 dep.name = [w1,w2] (后面考虑computed 其实是多对多)
+     */
+
+    /**
+     * nextTick 原理 -优化
+     * 1.创建nextTick()
      */
 
     /**
@@ -811,8 +910,10 @@
       let updateComponent = () => {
         vm._update(vm._render());
       };
-      //new watcher时调用了构造器，而构造器中默认调用了get(),get()又调用了传入的updateComponent
-      new watcher(vm, updateComponent, () => {}, true);
+      //new watcher时调用了构造器，而构造器中默认调用了get(),get()又调用了传入的updateComponent -part2:这个watcher是用于渲染的 目前没有任何功能
+      new watcher(vm, updateComponent, () => {
+        callHook(vm, 'updated'); //生命周期 updated的发布
+      }, true);
       callHook(vm, "mounted");
     }
     /**
@@ -822,7 +923,7 @@
     function lifecycleMixin(Vue) {
       Vue.prototype._update = function (vnode) {
         //vnode => 真实的dom
-        // console.log('---vnode',vnode)
+        console.log('---vnode', vnode);
         let vm = this;
         //参数 1）容器节点 2)vnode
         vm.$el = patch(vm.$el, vnode); //vue中的patch方法就是将虚拟dom->真实dom
@@ -834,7 +935,7 @@
     function callHook(vm, hook) {
       // console.log('---',hook);
       const handles = vm.$options[hook]; // 如hook为created, 则handles=[a,b,created]
-      // console.log('---handles',handles);
+      console.log('---handles', handles);
       if (handles) {
         for (let i = 0; i < handles.length; i++) {
           //性能最好的就是这种原始for
@@ -972,6 +1073,7 @@
     initMixin(Vue); //调用该方法会向Vue对象的原型链上添加_init方法——对状态进行初始化
     lifecycleMixin(Vue); //对生命周期进行初始化
     renderMixin(Vue); //添加vm._render方法
+    stateMixin(Vue); //给vm添加$nextTick
 
     //全局方法 vue.mixin Vue.component Vue.extend
     initGlobalApi(Vue); //初始化全局方法

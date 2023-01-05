@@ -25,11 +25,11 @@ class Dep{
 Dep.target = null;
 export function pushTarget(watcher){
     Dep.target = watcher;
-    console.log('---Dep.target',Dep.target)
+    // console.log('---Dep.target',Dep.target)
 }
 //删除watcher
 export function popTarget(){
     Dep.target = null;
-    console.log('---popTarget.target',Dep.target)
+    // console.log('---popTarget.target',Dep.target)
 }
 export default Dep;

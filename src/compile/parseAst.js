@@ -8,8 +8,6 @@
  * children:[{tag:null,text:'hello'},{tag:'span'}]
  */
 
- import { stat } from "@babel/core/lib/gensync-utils/fs";
- import { ConstantTypes } from "@vue/compiler-core";
  
  /** 以下为vue2中区别标签相关的正则 */
  const ncname = `[a-zA-Z_][\\-\\.0-9_a-zA-Z]*`// 标签名称 ---如 div

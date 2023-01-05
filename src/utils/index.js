@@ -41,7 +41,7 @@ function mergeHook(parentVal,childVal){
  * @returns 
  */
 export function mergeOptions(parent,child){
-    console.log('---mergeOptions',parent,child)
+    // console.log('---mergeOptions',parent,child)
     //Vue.options = {created:[a,b,c],watch:[a,b]}
     const options = {};
     //如果有parent 没有 child

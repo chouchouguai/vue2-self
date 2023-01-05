@@ -12,3 +12,9 @@
 6. render->虚拟dom
 7. vue渲染流程 + 合并生命周期 （created data）及调用
 正则说明：
+part2:
+1. 创建Watcher实例 实现更新 对象的收集依赖 dep watcher  数组的收集依赖
+2. 队列处理
+3. 实现nextTick() -优化节流更新部分
+4. 实现生命周期 -update
+5. 实现watch
