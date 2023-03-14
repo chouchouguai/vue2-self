@@ -17,4 +17,11 @@ part2:
 2. 队列处理
 3. 实现nextTick() -优化节流更新部分
 4. 实现生命周期 -update
-5. 实现watch
+part3:
+1. 实现watch -其实watch的核心就是watcher
+    - 安装vue2   npm i vue@2.6.14 -演示 watch用法 -4中基本使用
+    - 在自己vue 的初始化中进行格式化 
+    - watch的最终使用方式是$watch
+      ----此方法中创建Watcher,可以获取到第一次数据get() 以及 数据改变是 执行watcher.js的run()
+      run函数主要,再执行get（）huoqu 
+    - watch的完善

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>该页面是用来演示watch的使用方式</title>
+</head>
+<body>
+    <div id="app">{{a}},{{c.c.c}}</div>
+</body>
+<!-- <script src="/node_modules/vue/dist/vue.js"></script> -->
+<script src="./dist/vue.js"></script>
+<script>
+    let vm = new Vue({
+        el:"#app",
+        data:{
+            a:1,
+            b:{gf:{name:'wangwu'}},
+            c:{c:{c:100}}
+        },
+        methods:{
+            aa(){
+                console.log('---aa')
+            }
+        },
+        watch:{
+            //watch 的基本使用方式 -不应该使用箭头函数来定义 watcher 函数 (searchQuery: newValue => this.updateAutocomplete(newValue))。理由是箭头函数绑定了父级作用域的上下文，所以 this 将不会按照期望指向 Vue 实例，)
+            //--------1. 属性:方法--------
+            // a:function(newValue){}
+
+            // 'a'(newValue,oldValue){//a 的引号 可加可不加
+            //     console.log(newValue)
+            // }
+
+            //-------2.属性:[方法1,方法2...]----
+            // a:[function (newValue){
+            //     console.log('--f1',newValue,this)
+            // },function (newValue){
+            //     console.log('--f2',newValue)
+            // },function(newValue){
+            //     console.log('--f2',newValue)
+            // }]
+
+            //-------3.属性:对象 ：ps 该对象有handler函数-------
+            // b:{
+            //     handler(newValue){
+            //         console.log(newValue.gf.name)
+            //     },
+            //     // 该回调会在任何被侦听的对象的 property 改变时被调用，不论其被嵌套多深 --不管b的啥属性变化了 都会执行handler函数
+            //     deep: true,
+            //     immediate:true
+            // }
+            
+            //--------4.属性:"方法名"-------
+            // a:'aa'//aa 为自定义的方法
+            
+            a:{
+                handler(newValue,oldValue){
+                    console.log('xxx100',newValue,oldValue)
+                },
+                immediate:true
+            },
+            "c.c.c":function(newValue){
+                console.log('--watch ccc',newValue)
+            }
+        }
+    })
+    vm.a = 100 
+    /*以上重新赋值会触发以下步骤（大概）：
+        1.observe/index.js/defineReactive/set()
+        2.set()中最关键：新值被代理，    且observe/dep/dep.notify():该方法会将subs中的每一个watcher.update()
+        3.调用observe/watcher.js/update()
+        4.update()调用同文件的queueWatcher(this);
+        5.queueWatcher()将watcher放入队列queue中，且调用 utils/nextTick/nextTick(flushWatcher)
+        6.nextTick(flushWatcher)->执行flushWatcher()，flushWatcher方法则会执行队列queue中每个watcher创建时传入的回调函数cb,而创建vue对象 initState.js中 options中有watch选项时，已经通过initWatch,将a
+          的处理函数handler保存为了new Watcher的cb回调函数，所以此时执行queue中watcher的cb 即为执行 handler函数
+    */
+    // vm.b.gf.name="xiaolili"
+    vm.c.c.c = 'ccc'
+</script>
+</html>
+

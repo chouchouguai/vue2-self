@@ -17,7 +17,9 @@ export default{
     serve({
       port:3000,//开启服务的端口号
       contentBase:'',//‘’字符串代表当前目录
-      openPage:'/index.html'//访问3000端口时打开该文件
+      //openPage:'/index.html'//访问3000端口时打开该文件
+      //part3:实现watche 
+      openPage:'/watch.html'
     }),//开启的服务
     
   ]

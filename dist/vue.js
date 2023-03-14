@@ -12,9 +12,12 @@
     starts.data = function (parentVal, childVal) {
       return childVal;
     }; //合并data
-    starts.computed = function () {}; //合并computed
-    starts.watch = function () {}; //合并watch
-    starts.methods = function () {}; //合并methods
+
+    //part3:实现watch时先注释这三行
+    // starts.computed = function(){}//合并computed
+    // starts.watch = function(){}//合并watch
+    // starts.methods = function(){}//合并methods
+
     //遍历生命周期，依次添加starts[beforeCreate],starts[created]。。等
     HOOKS.forEach(hooks => {
       starts[hooks] = mergeHook;
@@ -502,7 +505,7 @@
     }
     /**nextTick :兼容不同浏览器 处理异步 */
     function nextTick(cb) {
-      console.log('nextT', cb);
+      // console.log('nextT',cb);
       //队列
       callback.push(cb);
       //promise.then() vue3中
@@ -683,18 +686,216 @@
       });
     }
 
+    //1)通过这个watcher类 实现更新 --订阅者
+
+    //因为每个组件 都有一个watcher ,为了区分 则需要一个唯一标识 id
+    let id = 0;
+    class watcher {
+      /**
+       * 
+       * @param {*} vm -当前vue实例
+       * @param {*} exprOrfn  -传入的某个表达式 ：表达式：1） 用来更新视图的方法updateComponent   2）需要watch的属性
+       * @param {*} cb 
+       * @param {*} options 
+       */
+      constructor(vm, exprOrfn, cb, options) {
+        // console.log('---watcher 构造器执行',id);
+        //1)
+        this.vm = vm;
+        this.exprOrfn = exprOrfn;
+        this.cb = cb;
+        this.options = options;
+        this.id = id++;
+        this.deps = []; //watcher 存放dep
+        this.depsId = new Set(); //存放depId
+        this.user = !!options.user; //转为boolean 该watcher是否是用户创建的
+        //2)判断
+        if (typeof exprOrfn === 'function') {
+          this.getter = exprOrfn; //用来更新视图
+        } else {
+          //watch时 传入的exprOrfn可能是属性c1,也可能是c1.c2.c3 此时this.getter 就是用户返回该属性值的函数
+          /** 
+           * watch 的属性  如data中有属性{a:1,b:2,c:3,d:4}, watch:{a:fn1,b:fn2},其中watch的属性 a,b 在书写时都是字符串
+           * 也可能存在data中{c:{c:{c:100}}},需要watch最里面一层的c watch:{"c.c.c":fn}
+          */
+          this.getter = function () {
+            //属性 字符串
+            let path = exprOrfn.split('.'); //如处理"c1.c2.c3"
+            let obj = vm;
+            for (let i = 0; i < path.length; i++) {
+              //[c1,c2,c3]
+              obj = obj[path[i]]; // 循环3次 第一次此处obj= vm[c1],第二次循环 obj= vm[c1][c2],第三次循环 obj = vm[c1][c2][c3]
+            }
+
+            return obj;
+          };
+        }
+        //更新视图
+        this.value = this.get(); //保存watch初始值
+      }
+      //watcher放dep & dep放watcher
+      addDep(dep) {
+        //1.去重
+        let id = dep.id;
+        if (!this.depsId.has(id)) {
+          this.deps.push(dep);
+          this.depsId.add(id);
+          //dep中放watcher
+          dep.addSub(this);
+        }
+      }
+      //更新方法（ps：watcher的第一次执行 走get方法 以后的更新都走run方法）
+      run() {
+        // watch时会传入 old 和 new
+        // this.get()
+        //写 watch的完善，加入old和new值时才需要换成下面写法 在那之前 都是上面一行
+        let value = this.get(); //新值
+        let oldValue = this.value; //watch初始化的时候执行了get(),获取的是旧值
+        this.value = value; //新值替换
+        //执行handler(cb) 这个是用户的watcher
+        if (this.user) {
+          this.cb.call(this.vm, value, oldValue); //执行watch的回调 并且将新值和旧值传入-这行写完直接去watch.html页面 给watch a的回调添加 newValue 和 oldValue，若发现多执行了一次，则需要将flushWatcher中的item.cb()删除 因为我们在这里执行了cb
+        }
+      }
+      //初次渲染-获取对象的值
+      get() {
+        //添加watcher
+        pushTarget(this); //this就是一个watcher实例 初次渲染(第一次调用vm._update(vm._render())之前，添加watcher
+        /**
+         * 渲染页面 调用传入的updateComponent 即为：vm._update(vm._render()),其中_s(msg),会调用vm.msg 即调用observe/index.js defineReactive中的get()方法,此时若data中有多个属性被调用，
+         * 则都执行get方法之后才会执行后面的popTarget -->将Dep.target置为null
+         * */
+        const value = this.getter(); //旧值
+
+        //初次渲染（第一次调用vm._update(vm._render())）之后 删除watcher
+        popTarget();
+        return value;
+      }
+      //更新-对象的更新
+      update() {
+        // this.get();
+        //注意:不要每次数据更改后，都调用更新-考虑使用缓存
+        queueWatcher(this);
+      }
+    }
+    let queue = []; //将需要批量更新的watcher 存放到一个队列中
+    let has = {};
+    let pending = false;
+    function flushWatcher() {
+      queue.forEach(item => {
+        item.run(); //执行watcher的run()->this.get()->1）添加watcher 2）调用vm._update(vm._render()) 3）删除watcher
+        //item.cb();//part2://执行new Watcher时传入的回调方法,更新完视图之后 用户在页面new Vue()实例的update函数中写了什么 就执行什么 -在完善watch时这行注释,因为在run方法中执行了该cb回调
+        //或者完善watch时
+        if (!item.user) {
+          item.cb();
+        }
+      });
+      queue = [];
+      has = {};
+      pending = false;
+    }
+    function queueWatcher(watcher) {
+      //每个组件都是同一个watcher
+      let id = watcher.id;
+      // console.log('--watcher.id', watcher)
+      //通过id 去重 
+      if (has[id] == null) {
+        //队列处理 将watcher放入队列中
+        queue.push(watcher);
+        has[id] = true; //
+        //-节流 -一定时间内触发多次，只触发第一次
+        if (!pending) {
+          // console.log('---截流')
+          // setTimeout(()=>{//异步 等待同步代码执行完毕之后再执行该异步方法
+          //     console.log('---setTime',queue)
+          //     queue.forEach(item=>item.run())
+          //     queue = [];
+          //     has = {};
+          //     pending = false;
+          // },0)//通过nextTick实现更优化
+          /**
+           * nextTick相当于定时器
+           */
+          nextTick(flushWatcher);
+        }
+        // console.log('---zhunbeigai pending')
+        pending = true;
+      }
+    }
+
+    /**
+     * 收集依赖
+     * vue 
+     * dep:就是data:{name,msg}中有多少个属性,则dep中有多少个 ，dep和data中的属性是一一对应的
+     * watcher:就是data中的属性，在视图上用了几个,dep的subs中就有几个watcher  -（第一个版本中 同时修改两个属性，msg,name subs中的两个watcher是同一个 subs=[watcher0,watcher0]）
+     * dep与watcher的关系： 1对多 dep.name = [w1,w2] (后面考虑computed 其实是多对多)
+     */
+
+    /**
+     * nextTick 原理 -优化
+     * 1.创建nextTick()
+     */
+
     /**初始化数据的文件 */
     function initState(vm) {
       let opts = vm.$options;
       // console.log('--opts',opts)
-      //判断
-      if (opts.props) ;
       if (opts.data) {
+        //注意一定要先初始化data 再初始化watch
         initData(vm);
       }
-      if (opts.watch) ;
+      if (opts.watch) {
+        initWatch(vm);
+      }
+      //判断
+      if (opts.props) ;
       if (opts.computed) ;
       if (opts.methods) ;
+    }
+    //part3:实现watch的第一步 -填充该方法
+    function initWatch(vm) {
+      //1. 获取watch
+      let watch = vm.$options.watch;
+      console.log('----initWatch', watch);
+      //2. 遍历 --因为watch的写法 属性: 后面可以跟 1)函数   2）数组   3）对象    4）字符串
+      for (let key in watch) {
+        //2.1 获取 属性对应的值 判断
+        let handler = watch[key]; //handler 可能是1)函数   2）数组   3）对象    4）字符串
+        if (Array.isArray(handler)) {
+          //数组 (数组每一项都是方法)
+          handler.forEach(item => {
+            createWatcher(vm, key, item);
+          });
+        } else {
+          //3）对象    4）字符串  1)函数
+          //3. 创建一个函数来处理
+          createWatcher(vm, key, handler);
+        }
+      }
+    }
+
+    /**
+     * 格式化处理 -处理好handler函数实际内容 再通过vm.$watch方法执行
+     * @param {*} vm 
+     * @param {*} exprOrfn //vm.$watch(()=>{return 'a'})//返回值“a”就是watch上的属性 也就是说 第二个参数 可能是属性名称，也可能是一个表达式（该表达式会返回属性名）
+     * @param {*} handler 
+     * @param {*} options  如：user=false
+     */
+    function createWatcher(vm, exprOrfn, handler, options = {}) {
+      //接initWatch
+      //3.1 处理handler
+      if (typeof handler === 'object') {
+        //{handler:function(){},deep:true}
+        options = handler; //用户的配置项目 {handler:function(){},deep:true}
+        handler = handler.handler;
+      }
+      if (typeof handler === 'string') {
+        //'aa' 是实例上的方法
+        handler = vm[handler]; //将实例上的方法作为handler  方法的代理和data一样
+      }
+      //其他是函数
+      //watch 最终处理 通过$watch 这个方法 -该方法需要手动添加 (stateMixin()函数中)
+      return vm.$watch(vm, exprOrfn, handler, options);
     }
     //vue2 对data初始化
     /**
@@ -732,119 +933,29 @@
       //队列处理 1)是vue自己的nextTick()   2)用户自己函数cb
       vm.prototype.$nextTick = function (cb) {
         nextTick(cb); //此时的nextTick就是utils/nextTick暴漏的方法
+      },
+      /**
+       * 
+       * @param {*} exprOrfn 属性
+       * @param {*} handler 处理函数
+       * @param {*} options 其他配置项
+       */
+      vm.prototype.$watch = function (vm, exprOrfn, handler, options = {}) {
+        console.log(exprOrfn, handler, options);
+        //实现watch 方法  利用new watcher -渲染的时候走渲染的watcher  $watch走watch的watcher-利用user false
+        //watch 的核心就是watcher -完善watch的第一步
+        let watcher$1 = new watcher(vm, exprOrfn, handler, {
+          ...options,
+          user: true
+        } //注意最后的options合并 添加了user:true,代表此时watch是用户添加的属性，该合并在完善watch时再添加
+        );
+
+        console.log('----watcher', watcher$1);
+        if (options.immediate) {
+          handler.call(vm); //如果有immediate 则立即执行handler函数
+        }
       };
     }
-
-    //1)通过这个watcher类 实现更新 --订阅者
-
-    //因为每个组件 都有一个watcher ,为了区分 则需要一个唯一标识 id
-    let id = 0;
-    class watcher {
-      constructor(vm, updateComponent, cb, options) {
-        // console.log('---watcher 构造器执行',id);
-        //1)
-        this.vm = vm;
-        this.exprOrfn = updateComponent;
-        this.cb = cb;
-        this.options = options;
-        this.id = id++;
-        this.deps = []; //watcher 存放dep
-        this.depsId = new Set(); //存放depId
-        //2)判断
-        if (typeof updateComponent === 'function') {
-          this.getter = updateComponent; //用来更新视图
-        }
-        //更新视图
-        this.get();
-      }
-      //watcher放dep & dep放watcher
-      addDep(dep) {
-        //1.去重
-        let id = dep.id;
-        if (!this.depsId.has(id)) {
-          this.deps.push(dep);
-          this.depsId.add(id);
-          //dep中放watcher
-          dep.addSub(this);
-        }
-      }
-      run() {
-        this.get();
-      }
-      //初次渲染-获取对象的值
-      get() {
-        //添加watcher
-        pushTarget(this); //this就是一个watcher实例 初次渲染(第一次调用vm._update(vm._render())之前，添加watcher
-        /**
-         * 渲染页面 调用传入的updateComponent 即为：vm._update(vm._render()),其中_s(msg),会调用vm.msg 即调用observe/index.js defineReactive中的get()方法,此时若data中有多个属性被调用，
-         * 则都执行get方法之后才会执行后面的popTarget -->将Dep.target置为null
-         * */
-        this.getter();
-
-        //初次渲染（第一次调用vm._update(vm._render())）之后 删除watcher
-        popTarget();
-      }
-      //更新-对象的更新
-      update() {
-        // this.get();
-        //注意:不要每次数据更改后，都调用更新-考虑使用缓存
-        queueWatcher(this);
-      }
-    }
-    let queue = []; //将需要批量更新的watcher 存放到一个队列中
-    let has = {};
-    let pending = false;
-    function flushWatcher() {
-      queue.forEach(item => {
-        item.run(); //执行watcher的run()->this.get()->1）添加watcher 2）调用vm._update(vm._render()) 3）删除watcher
-        item.cb(); //part2://执行new Watcher时传入的回调方法,更新完视图之后 用户在页面new Vue()实例的update函数中写了什么 就执行什么
-      });
-
-      queue = [];
-      has = {};
-      pending = false;
-    }
-    function queueWatcher(watcher) {
-      //每个组件都是同一个watcher
-      let id = watcher.id;
-      console.log('--watcher.id', watcher);
-      //通过id 去重 
-      if (has[id] == null) {
-        //队列处理 将watcher放入队列中
-        queue.push(watcher);
-        has[id] = true; //
-        //-节流 -一定时间内触发多次，只触发第一次
-        if (!pending) {
-          // console.log('---截流')
-          // setTimeout(()=>{//异步 等待同步代码执行完毕之后再执行该异步方法
-          //     console.log('---setTime',queue)
-          //     queue.forEach(item=>item.run())
-          //     queue = [];
-          //     has = {};
-          //     pending = false;
-          // },0)//通过nextTick实现更优化
-          /**
-           * nextTick相当于定时器
-           */
-          nextTick(flushWatcher);
-        }
-        console.log('---zhunbeigai pending');
-        pending = true;
-      }
-    }
-
-    /**
-     * 收集依赖
-     * vue 
-     * dep:就是data:{name,msg}中有多少个属性,则dep中有多少个 ，dep和data中的属性是一一对应的
-     * watcher:就是data中的属性，在视图上用了几个,dep的subs中就有几个watcher  -（第一个版本中 同时修改两个属性，msg,name subs中的两个watcher是同一个 subs=[watcher0,watcher0]）
-     * dep与watcher的关系： 1对多 dep.name = [w1,w2] (后面考虑computed 其实是多对多)
-     */
-
-    /**
-     * nextTick 原理 -优化
-     * 1.创建nextTick()
-     */
 
     /**
      * 
@@ -923,7 +1034,7 @@
     function lifecycleMixin(Vue) {
       Vue.prototype._update = function (vnode) {
         //vnode => 真实的dom
-        console.log('---vnode', vnode);
+        // console.log('---vnode',vnode)
         let vm = this;
         //参数 1）容器节点 2)vnode
         vm.$el = patch(vm.$el, vnode); //vue中的patch方法就是将虚拟dom->真实dom
@@ -935,7 +1046,7 @@
     function callHook(vm, hook) {
       // console.log('---',hook);
       const handles = vm.$options[hook]; // 如hook为created, 则handles=[a,b,created]
-      console.log('---handles', handles);
+      // console.log('---handles',handles);
       if (handles) {
         for (let i = 0; i < handles.length; i++) {
           //性能最好的就是这种原始for

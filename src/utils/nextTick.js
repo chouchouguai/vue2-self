@@ -24,7 +24,7 @@ if(Promise){
 }
 /**nextTick :兼容不同浏览器 处理异步 */
 export function nextTick(cb){
-    console.log('nextT',cb);
+    // console.log('nextT',cb);
     //队列
     callback.push(cb);
     //promise.then() vue3中

@@ -7,22 +7,44 @@ import { popTarget, pushTarget } from "./dep";
 //因为每个组件 都有一个watcher ,为了区分 则需要一个唯一标识 id
 let id = 0;
 class watcher {
-    constructor(vm, updateComponent, cb, options) {
+    /**
+     * 
+     * @param {*} vm -当前vue实例
+     * @param {*} exprOrfn  -传入的某个表达式 ：表达式：1） 用来更新视图的方法updateComponent   2）需要watch的属性
+     * @param {*} cb 
+     * @param {*} options 
+     */
+    constructor(vm, exprOrfn, cb, options) {
         // console.log('---watcher 构造器执行',id);
         //1)
         this.vm = vm;
-        this.exprOrfn = updateComponent;
+        this.exprOrfn = exprOrfn;
         this.cb = cb;
         this.options = options;
         this.id = id++;
         this.deps = [];//watcher 存放dep
         this.depsId = new Set();//存放depId
+        this.user = !!options.user;//转为boolean 该watcher是否是用户创建的
         //2)判断
-        if (typeof updateComponent === 'function') {
-            this.getter = updateComponent;//用来更新视图
+        if (typeof exprOrfn === 'function') {
+            this.getter = exprOrfn;//用来更新视图
+        }else{//watch时 传入的exprOrfn可能是属性c1,也可能是c1.c2.c3 此时this.getter 就是用户返回该属性值的函数
+            /** 
+             * watch 的属性  如data中有属性{a:1,b:2,c:3,d:4}, watch:{a:fn1,b:fn2},其中watch的属性 a,b 在书写时都是字符串
+             * 也可能存在data中{c:{c:{c:100}}},需要watch最里面一层的c watch:{"c.c.c":fn}
+            */
+            this.getter = function(){//属性 字符串
+                let path = exprOrfn.split('.') //如处理"c1.c2.c3"
+                let obj = vm;
+                for (let i=0;i<path.length;i++){//[c1,c2,c3]
+                    obj = obj[path[i]];// 循环3次 第一次此处obj= vm[c1],第二次循环 obj= vm[c1][c2],第三次循环 obj = vm[c1][c2][c3]
+
+                }
+                return obj;
+            }
         }
         //更新视图
-        this.get()
+        this.value = this.get();//保存watch初始值
     }
     //watcher放dep & dep放watcher
     addDep(dep) {
@@ -35,8 +57,18 @@ class watcher {
             dep.addSub(this);
         }
     }
-    run() {
-        this.get()
+    //更新方法（ps：watcher的第一次执行 走get方法 以后的更新都走run方法）
+    run() {// watch时会传入 old 和 new
+        // this.get()
+        //写 watch的完善，加入old和new值时才需要换成下面写法 在那之前 都是上面一行
+        let value = this.get();//新值
+        let oldValue = this.value;//watch初始化的时候执行了get(),获取的是旧值
+        this.value = value;//新值替换
+        //执行handler(cb) 这个是用户的watcher
+        if(this.user){
+            this.cb.call(this.vm,value,oldValue);//执行watch的回调 并且将新值和旧值传入-这行写完直接去watch.html页面 给watch a的回调添加 newValue 和 oldValue，若发现多执行了一次，则需要将flushWatcher中的item.cb()删除 因为我们在这里执行了cb
+        }
+        
     }
     //初次渲染-获取对象的值
     get() {
@@ -46,10 +78,11 @@ class watcher {
          * 渲染页面 调用传入的updateComponent 即为：vm._update(vm._render()),其中_s(msg),会调用vm.msg 即调用observe/index.js defineReactive中的get()方法,此时若data中有多个属性被调用，
          * 则都执行get方法之后才会执行后面的popTarget -->将Dep.target置为null
          * */
-        this.getter();
+        const value = this.getter();//旧值
 
         //初次渲染（第一次调用vm._update(vm._render())）之后 删除watcher
         popTarget();
+        return value;
     }
     //更新-对象的更新
     update() {
@@ -64,7 +97,11 @@ let pending = false;
 function flushWatcher() {
     queue.forEach(item => {
         item.run();//执行watcher的run()->this.get()->1）添加watcher 2）调用vm._update(vm._render()) 3）删除watcher
-        item.cb();//part2://执行new Watcher时传入的回调方法,更新完视图之后 用户在页面new Vue()实例的update函数中写了什么 就执行什么
+        //item.cb();//part2://执行new Watcher时传入的回调方法,更新完视图之后 用户在页面new Vue()实例的update函数中写了什么 就执行什么 -在完善watch时这行注释,因为在run方法中执行了该cb回调
+        //或者完善watch时
+        if(!item.user){
+            item.cb();
+        }
     })
     queue = [];
     has = {};
@@ -72,7 +109,7 @@ function flushWatcher() {
 }
 function queueWatcher(watcher) {//每个组件都是同一个watcher
     let id = watcher.id;
-    console.log('--watcher.id', watcher)
+    // console.log('--watcher.id', watcher)
     //通过id 去重 
     if (has[id] == null) {
         //队列处理 将watcher放入队列中
@@ -93,7 +130,7 @@ function queueWatcher(watcher) {//每个组件都是同一个watcher
              */
             nextTick(flushWatcher)
         }
-        console.log('---zhunbeigai pending')
+        // console.log('---zhunbeigai pending')
         pending = true;
 
     }

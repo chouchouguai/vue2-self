@@ -15,9 +15,13 @@ let starts = {};
 starts.data = function(parentVal,childVal){
     return childVal;
 }//合并data
-starts.computed = function(){}//合并computed
-starts.watch = function(){}//合并watch
-starts.methods = function(){}//合并methods
+
+//part3:实现watch时先注释这三行
+// starts.computed = function(){}//合并computed
+// starts.watch = function(){}//合并watch
+// starts.methods = function(){}//合并methods
+
+
 //遍历生命周期，依次添加starts[beforeCreate],starts[created]。。等
 HOOKS.forEach(hooks=>{
     starts[hooks] = mergeHook
