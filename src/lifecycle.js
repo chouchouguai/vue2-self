@@ -30,7 +30,15 @@ export function lifecycleMixin(Vue){
         // console.log('---vnode',vnode)
         let vm = this;
         //参数 1）容器节点 2)vnode
-        vm.$el = patch(vm.$el,vnode);//vue中的patch方法就是将虚拟dom->真实dom
+        //1.vm.$el 真实的dom
+        //2.区分是否是首次 非首次：更新
+        let prevVnode = vm._vnode;//如果是首次 值为null
+        if(!prevVnode){//没有_vnode 表示是首次
+            vm.$el = patch(vm.$el,vnode);//比较原来的真实dom 和本次的vnode,最后转成真实dom返回 存入vm的$el上
+            vm._vnode = vnode;//vnode(上一次的真实dom)存入vm的_vnode
+        }else{
+            vm.$el = patch(vm.$el,vnode);//vue中的patch方法就是将虚拟dom->真实dom
+        }
     } 
 }
 //1)render()函数 ==》vnode ==》真实dom

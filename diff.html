@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div id="app1" >
+    <h2>你好</h2>
+    <h2>{{name}}</h2>
+  </div>
+  <script src="./dist/vue.js"></script>
+  <script>
+    //1.vue 操作的是vnode
+    //打印真实dom
+    // console.log(app)//不需要引入dist/vue.js即可以直接获取 id=app的dom节点对象 
+    // for(let key in app){
+    //   console.log(key)//打印app 真实dom的key --会有很多 所以我们不操作真实dom
+    // }
+
+    //vue的更新数据 vue diff算法 最小量更新(比对)  使用vnode
+    /*
+        在index.js中
+        1.创建两个vnode 
+        2.比对：在数据更新时，获取老节点和新节点做对比,将不同的地方进行更新
+    */
+    let vm = new Vue({
+        el:'#app1',
+        data:{
+            name:'章三'
+        }
+    })
+    setTimeout(()=>{
+        vm.name = 'lisi'
+    },2000)
+
+  </script>
+</body>
+</html>

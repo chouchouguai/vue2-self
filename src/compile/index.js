@@ -3,7 +3,7 @@ import { parseHTML } from "./parseAst";
 
 export function compileToFunction(el) {
   // 1.将html 变成ast语法树
-  let ast = parseHTML(el);
+  let ast = parseHTML(el);//part4 diff时发现该方法有问题 进入查看---整个只有一个parseHTML方法 其他方法都在其内部
   // console.log('---ast',ast);
   // 2. ast语法树变成render函数
   // 2.1）ast语法树变成 字符串
