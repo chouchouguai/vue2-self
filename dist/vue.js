@@ -850,7 +850,9 @@
       }
       //判断
       if (opts.props) ;
-      if (opts.computed) ;
+      if (opts.computed) {
+        initComputed(vm);
+      }
       if (opts.methods) ;
     }
     //part3:实现watch的第一步 -填充该方法
@@ -897,6 +899,11 @@
       //其他是函数
       //watch 最终处理 通过$watch 这个方法 -该方法需要手动添加 (stateMixin()函数中)
       return vm.$watch(vm, exprOrfn, handler, options);
+    }
+    //part5 computed第一步 继续编写该方法
+    function initComputed(vm) {
+      let computed = vm.$options.computed;
+      console.log('--initComputed', computed);
     }
     //vue2 对data初始化
     /**

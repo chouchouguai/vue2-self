@@ -17,7 +17,7 @@ export default{
     serve({
       port:3000,//开启服务的端口号
       contentBase:'',//‘’字符串代表当前目录
-      openPage:'/diff.html'
+      openPage:'/computed.html'
     }),//开启的服务
     
   ]

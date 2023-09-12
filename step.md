@@ -25,6 +25,10 @@ part3:watch(30,31)
       ----此方法中创建Watcher,可以获取到第一次数据get() 以及 数据改变是 执行watcher.js的run()
       run函数主要,再执行get（）huoqu 
     - watch的完善
-part4:diff算法(32,33,34)
+part4:diff算法(32,33,34) -有bug未解决
 1.新建diff.html
 2.33 diff算法 patch 两个虚拟dom对比
+
+part5:computed
+1.新建computed.html 简单使用它的两种用法，引入的./node_modules/vue/dist/vue.js
+2.通过使用明白原理，初始化computed,在src/initState.js中 完善initComputed()

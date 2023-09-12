@@ -69,7 +69,10 @@ function createWatcher(vm,exprOrfn,handler,options={}){
   return vm.$watch(vm,exprOrfn,handler,options)
 
 }
-function initComputed(){
+//part5 computed第一步 继续编写该方法
+function initComputed(vm){
+  let computed = vm.$options.computed;
+  console.log('--initComputed',computed)
 }
 function initMethods(){
 

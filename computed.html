@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="app"></div>
+    <!-- <script src="./node_modules/vue/dist/vue.js"></script> -->
+    <script src="dist/vue.js"></script>
+    <script>
+        let vm = new Vue({
+            el:"#app",
+            data:{
+                firstName:'张',
+                lastName:'三'
+            },
+            computed:{//具有缓存机制，数据改变才会重新执行这个方法
+                //使用方式
+                //1.属性:函数
+                // fullName(){
+                //     console.log('--执行')
+                //     return this.firstName+this.lastName
+                // }
+                //2.属性:对象
+                fullName:{
+                    get(){
+                        return this.firstName+this.lastName
+                    },
+                    set(){}
+                }
+            }
+        })
+        vm.fullName//1.实例获取到computed的属性 通过 Object.defineProperty将计算属性fullName代理到实例上
+        //2.具有缓存机制
+        /**
+         *  体现：通过一个变量 dirty 若未真 则执行 fullName方法 否则不执行
+        */
+        vm.fullName//只会执行一次‘--执行’ 
+    </script>
+</body>
+</html>
